@@ -842,7 +842,7 @@ class Environment {
     }
 }
 
-const NORMAL_NUMBER_FORMAT = new Intl.NumberFormat('en-US', { useGrouping: true, maximumFractionDigits: 20 });
+const NORMAL_NUMBER_FORMAT = new Intl.NumberFormat('en-US', { 'useGrouping': true, 'maximumFractionDigits': 20 });
 
 function estimatedWidth(n: string): number {
     let w = 0;
