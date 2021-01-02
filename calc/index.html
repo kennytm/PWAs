@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no, shrink-to-fit=no">
+<meta name="HandheldFriendly" content="true">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="stylesheet" href="./common.css">
+<title>Calculator</title>
+</head>
+<body>
+
+<div id="display-screen">
+    <div id="toolbar">
+        <button id="ac">AC</button>
+        <button id="copy">Copy</button>
+        <button id="history">History</button>
+    </div>
+    <div id="display-formula" class="formula"></div>
+    <div id="display-result-flex"><div id="display-result">0</div></div>
+</div>
+
+<div id="buttons">
+    <button id="neg">±</button>
+    <button id="reciprocal">1/𝘹</button>
+    <button id="sqrt">√</button>
+    <button id="pow">^</button>
+    <button id="backspace">⌫</button>
+
+    <button id="n-7" class="numbers">7</button>
+    <button id="n-8" class="numbers">8</button>
+    <button id="n-9" class="numbers">9</button>
+    <button id="open">(</button>
+    <button id="close">)</button>
+
+    <button id="n-4" class="numbers">4</button>
+    <button id="n-5" class="numbers">5</button>
+    <button id="n-6" class="numbers">6</button>
+    <button id="sub" class="operators">−</button>
+    <button id="div" class="operators">÷</button>
+
+    <button id="n-1" class="numbers">1</button>
+    <button id="n-2" class="numbers">2</button>
+    <button id="n-3" class="numbers">3</button>
+    <button id="add" class="operators">+</button>
+    <button id="mul" class="operators">×</button>
+
+    <button id="n-0" class="numbers">0</button>
+    <button id="dot">·</button>
+    <button id="ee">E</button>
+    <button id="ans">Ans</button>
+    <button id="eq" class="operators">=</button>
+</div>
+
+<div id="history-sheet" style="display: none;">
+    <div id="history-toolbar">
+        <button id="close-history">Close</button>
+        <button id="use-history-formula">Use formula</button>
+        <button id="copy-history-value">Copy value</button>
+        <button id="delete-history">Delete</button>
+    </div>
+    <div id="history-content">
+    </div>
+</div>
+
+<script src="./common.min.js"></script>
+
+</body>
+</html>

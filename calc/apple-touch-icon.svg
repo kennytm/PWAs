@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-180 -180 360 360">
+    <style>
+        text {
+            text-anchor: middle;
+            font-family: Impact;
+            font-size: 144px;
+            dominant-baseline: central;
+        }
+        #ans {
+            font-size: 72px;
+        }
+    </style>
+    <rect x="-180" y="-180" width="360" height="360" fill="#ddd"/>
+    <rect x="0" y="0" width="180" height="180" fill="#b61"/>
+    <path d="M0-180v360M-180 0h360" stroke="#222" stroke-width="4"/>
+    <text x="-90" y="-90">+</text>
+    <text x="90" y="-90">×</text>
+    <text x="-90" y="90" id="ans">Ans</text>
+    <text x="90" y="90">=</text>
+</svg>
