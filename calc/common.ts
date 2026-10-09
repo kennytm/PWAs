@@ -46,8 +46,32 @@ const enum SymOp {
     ans = 'Ans',
 }
 
+const enum ClassTag {
+    number = 'n',
+    binary = 'b',
+    unary = 'u',
+    group = 'g',
+    symbol = 's',
+    open = 'o',
+    eq = 'e',
+}
+
+type Value = number
+
+type Serialized = Readonly<
+    [ClassTag.number, [boolean, string]] |
+    [ClassTag.binary, BinOp] |
+    [ClassTag.unary, UnOp] |
+    [ClassTag.group, Serialized[]] |
+    [ClassTag.symbol, SymOp] |
+    [ClassTag.open, null] |
+    [ClassTag.eq, null]
+>
+
+type SerializedForTag<TAG extends ClassTag> = Extract<Serialized, readonly [TAG, unknown]>
+
 /** A token in a formula. */
-interface Token {
+interface Token<TAG extends ClassTag = ClassTag> {
     /** Append a digit to the token. */
     appendDigit(digit: Digit): AppendResult
     /** Append a binary operator to the token. */
@@ -64,18 +88,15 @@ interface Token {
     renderInto(result: string[]): void
 
     precedence(): Precedence
-    evaluate(env: Environment, ...args: number[]): number
+    evaluate(env: Environment, ...args: Value[]): Value
 
-    serializeTag(): string
-    serialize(): any
-    deserialize(value: any): void
+    serialize(): SerializedForTag<TAG>
+    deserialize(value: SerializedForTag<TAG>[1]): void
     clone(): Token
 }
 
 /** The number token. */
-class NumberToken implements Token {
-    static CLASS_NAME = 'n';
-
+class NumberToken implements Token<ClassTag.number> {
     negative: boolean
     number: string
 
@@ -122,7 +143,7 @@ class NumberToken implements Token {
 
     backspace(): boolean {
         if (this.number.length > 1) {
-            this.number = this.number.substr(0, this.number.length - 1);
+            this.number = this.number.substring(0, this.number.length - 1);
             return false;
         }
         return true;
@@ -135,19 +156,16 @@ class NumberToken implements Token {
     precedence(): Precedence {
         return Precedence.symbol;
     }
-    evaluate(_env: Environment, ..._args: number[]): number {
+    evaluate(_env: Environment, ..._args: Value[]): Value {
         const n = parseFloat(this.number);
         return this.negative ? -n : n;
     }
 
-    serializeTag(): string {
-        return NumberToken.CLASS_NAME;
-    }
-    serialize(): any {
-        return [this.negative, this.number];
+    serialize(): SerializedForTag<ClassTag.number> {
+        return [ClassTag.number, [this.negative, this.number]];
     }
 
-    deserialize(value: any): void {
+    deserialize(value: SerializedForTag<ClassTag.number>[1]): void {
         this.negative = value[0];
         this.number = value[1];
     }
@@ -161,9 +179,7 @@ class NumberToken implements Token {
 }
 
 /** The binary operator tokens (+, -, *, /, ^, E) */
-class BinaryToken implements Token {
-    static CLASS_NAME = 'b';
-
+class BinaryToken implements Token<ClassTag.binary> {
     op: BinOp
 
     constructor(op: BinOp) {
@@ -212,7 +228,7 @@ class BinaryToken implements Token {
                 return Precedence.pow;
         }
     }
-    evaluate(_env: Environment, ...args: number[]): number {
+    evaluate(_env: Environment, ...args: Value[]): Value {
         const [left, right] = args;
         switch (this.op) {
             case BinOp.add:
@@ -230,13 +246,10 @@ class BinaryToken implements Token {
         }
     }
 
-    serializeTag(): string {
-        return BinaryToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.binary> {
+        return [ClassTag.binary, this.op];
     }
-    serialize(): any {
-        return this.op;
-    }
-    deserialize(value: any): void {
+    deserialize(value: SerializedForTag<ClassTag.binary>[1]): void {
         this.op = value;
     }
 
@@ -246,9 +259,7 @@ class BinaryToken implements Token {
 }
 
 /** The unary operator tokens (1/x, sqrt) */
-class UnaryToken implements Token {
-    static CLASS_NAME = 'u';
-
+class UnaryToken implements Token<ClassTag.unary> {
     op: UnOp
 
     constructor(op: UnOp) {
@@ -293,7 +304,7 @@ class UnaryToken implements Token {
     precedence(): Precedence {
         return Precedence.unary;
     }
-    evaluate(_env: Environment, ...args: number[]): number {
+    evaluate(_env: Environment, ...args: Value[]): Value {
         const x = args[0];
         switch (this.op) {
             case UnOp.reciprocal:
@@ -305,13 +316,10 @@ class UnaryToken implements Token {
         }
     }
 
-    serializeTag(): string {
-        return UnaryToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.unary> {
+        return [ClassTag.unary, this.op];
     }
-    serialize(): any {
-        return this.op;
-    }
-    deserialize(value: any): void {
+    deserialize(value: SerializedForTag<ClassTag.unary>[1]): void {
         this.op = value;
     }
     clone(): Token {
@@ -348,9 +356,7 @@ function toRPN(tokens: Token[]): Token[] {
     return result;
 }
 
-class GroupToken implements Token {
-    static CLASS_NAME = 'g';
-
+class GroupToken implements Token<ClassTag.group> {
     tokens: Token[]
 
     constructor(tokens: Token[]) {
@@ -392,8 +398,8 @@ class GroupToken implements Token {
     precedence(): Precedence {
         return Precedence.symbol;
     }
-    evaluate(env: Environment, ..._args: number[]): number {
-        const numbers: number[] = [];
+    evaluate(env: Environment, ..._args: Value[]): Value {
+        const numbers: Value[] = [];
         for (const token of toRPN(this.tokens)) {
             switch (token.precedence()) {
                 case Precedence.symbol:
@@ -410,23 +416,18 @@ class GroupToken implements Token {
         return numbers[0];
     }
 
-    serializeTag(): string {
-        return GroupToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.group> {
+        return [ClassTag.group, this.tokens.map(t => t.serialize())];
     }
-    serialize(): any {
-        return this.tokens.map(serializeToken);
-    }
-    deserialize(value: any): void {
-        this.tokens = (value as [string, any][]).map(deserializeToken);
+    deserialize(value: SerializedForTag<ClassTag.group>[1]): void {
+        this.tokens = value.map(deserializeToken);
     }
     clone(): Token {
         return new GroupToken(this.tokens.map(t => t.clone()));
     }
 }
 
-class SymbolToken implements Token {
-    static CLASS_NAME = 's';
-
+class SymbolToken implements Token<ClassTag.symbol> {
     op: SymOp
 
     constructor(op: SymOp) {
@@ -464,7 +465,7 @@ class SymbolToken implements Token {
     precedence(): Precedence {
         return Precedence.symbol
     }
-    evaluate(env: Environment, ..._args: number[]): number {
+    evaluate(env: Environment, ..._args: Value[]): Value {
         switch (this.op) {
             case SymOp.ans:
                 if (env.history.length > 0) {
@@ -474,13 +475,10 @@ class SymbolToken implements Token {
         }
     }
 
-    serializeTag(): string {
-        return SymbolToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.symbol> {
+        return [ClassTag.symbol, this.op];
     }
-    serialize(): any {
-        return this.op;
-    }
-    deserialize(value: any): void {
+    deserialize(value: SerializedForTag<ClassTag.symbol>[1]): void {
         this.op = value;
     }
     clone(): Token {
@@ -488,9 +486,7 @@ class SymbolToken implements Token {
     }
 }
 
-class OpenToken implements Token {
-    static CLASS_NAME = 'o';
-
+class OpenToken implements Token<ClassTag.open> {
     appendDigit(_: Digit): AppendResult {
         return AppendResult.createAfter;
     }
@@ -522,26 +518,21 @@ class OpenToken implements Token {
     precedence(): Precedence {
         return Precedence.open;
     }
-    evaluate(_env: Environment, ..._args: number[]): number {
+    evaluate(_env: Environment, ..._args: Value[]): Value {
         throw new Error('should never evaluate OpenToken');
     }
 
-    serializeTag(): string {
-        return OpenToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.open> {
+        return [ClassTag.open, null];
     }
-    serialize(): any {
-        return null;
-    }
-    deserialize(_: any): void {
+    deserialize(_: SerializedForTag<ClassTag.open>[1]): void {
     }
     clone(): Token {
         return this;
     }
 }
 
-class EqToken implements Token {
-    static CLASS_NAME = 'e';
-
+class EqToken implements Token<ClassTag.eq> {
     appendDigit(_: Digit): AppendResult {
         return AppendResult.createAfter;
     }
@@ -568,49 +559,42 @@ class EqToken implements Token {
     precedence(): Precedence {
         return Precedence.eq;
     }
-    evaluate(_env: Environment, ..._args: number[]): number {
+    evaluate(_env: Environment, ..._args: Value[]): Value {
         throw new Error('should never evaluate EqToken');
     }
 
-    serializeTag(): string {
-        return EqToken.CLASS_NAME;
+    serialize(): SerializedForTag<ClassTag.eq> {
+        return [ClassTag.eq, null];
     }
-    serialize(): any {
-        return null;
-    }
-    deserialize(_: any): void {
+    deserialize(_: SerializedForTag<ClassTag.eq>[1]): void {
     }
     clone(): Token {
         return this;
     }
 }
 
-function serializeToken(token: Token): [string, any] {
-    return [token.serializeTag(), token.serialize()];
-}
-
-function deserializeToken(json: [string, any]): Token {
+function deserializeToken(json: Serialized): Token {
     let initToken: Token;
     switch (json[0]) {
-        case NumberToken.CLASS_NAME:
+        case ClassTag.number:
             initToken = new NumberToken('0');
             break;
-        case BinaryToken.CLASS_NAME:
+        case ClassTag.binary:
             initToken = new BinaryToken(BinOp.add);
             break;
-        case UnaryToken.CLASS_NAME:
+        case ClassTag.unary:
             initToken = new UnaryToken(UnOp.neg);
             break;
-        case GroupToken.CLASS_NAME:
+        case ClassTag.group:
             initToken = new GroupToken([]);
             break;
-        case SymbolToken.CLASS_NAME:
+        case ClassTag.symbol:
             initToken = new SymbolToken(SymOp.ans);
             break;
-        case OpenToken.CLASS_NAME:
+        case ClassTag.open:
             initToken = new OpenToken();
             break;
-        case EqToken.CLASS_NAME:
+        case ClassTag.eq:
             initToken = new EqToken();
             break;
         default:
@@ -786,7 +770,7 @@ class Formula {
 
 interface CalcHistory {
     formula: Token[],
-    ans: number,
+    ans: Value,
 }
 
 const MAX_HISTORY_COUNT = 64;
@@ -794,7 +778,7 @@ const MAX_HISTORY_COUNT = 64;
 class Environment {
     historyIndices: number[]
     history: CalcHistory[]
-    partialAns: number
+    partialAns: Value
 
     constructor() {
         const historyIndices: number[] = JSON.parse(localStorage.getItem('hI') || '[]');
@@ -816,7 +800,7 @@ class Environment {
         this.partialAns = 0;
     }
 
-    saveAns(formula: Token[], ans: number): void {
+    saveAns(formula: Token[], ans: Value): void {
         let nextHistoryID = 0;
         if (this.historyIndices.length > 0) {
             nextHistoryID = this.historyIndices[this.historyIndices.length - 1] + 1;
@@ -829,7 +813,7 @@ class Environment {
         this.historyIndices.push(nextHistoryID);
         this.history.push({ formula, ans });
 
-        localStorage.setItem(`hV${nextHistoryID}`, JSON.stringify([formula.map(serializeToken), ans]));
+        localStorage.setItem(`hV${nextHistoryID}`, JSON.stringify([formula.map(t => t.serialize()), ans]));
         localStorage.setItem('hI', JSON.stringify(this.historyIndices));
     }
 
@@ -880,12 +864,12 @@ document.body.addEventListener('touchmove', (e) => {
 let FORMULA = new Formula();
 let ENV = new Environment();
 
-function formatNumber(n: number): string {
+function formatNumber(n: Value): string {
     const abs = Math.abs(n);
     return (abs === 0 || abs >= 1e-6 && abs < 1e16) ? NORMAL_NUMBER_FORMAT.format(n) : n.toExponential();
 }
 
-function setResultNumber(n: number) {
+function setResultNumber(n: Value) {
     const resElem = $('display-result');
     const formatted = formatNumber(n);
     const maxWidth = resElem.clientWidth;
@@ -958,8 +942,7 @@ $('copy').onclick = () => {
 }
 
 function selectedHistoryItem(): number {
-    for (const item of document.getElementsByName('history-item')) {
-        const input = item as HTMLInputElement;
+    for (const input of document.querySelectorAll<HTMLInputElement>('input[name="history-item"]')) {
         if (input.checked) {
             return +input.value;
         }
