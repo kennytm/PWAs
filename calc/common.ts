@@ -1028,5 +1028,5 @@ $('delete-history').onclick = () => {
 $('close-history').onclick = closeHistorySheet;
 
 if (navigator.serviceWorker) {
-    window.onload = () => navigator.serviceWorker.register('sw.min.js');
+    window.onload = () => navigator.serviceWorker.register('sw.js');
 }
