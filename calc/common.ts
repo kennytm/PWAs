@@ -1,3 +1,5 @@
+import { RatioValue, Value, deserializeValue } from './value';
+
 const enum AppendResult {
     /** The current token has been replaced in-place. */
     replaced,
@@ -56,8 +58,6 @@ const enum ClassTag {
     eq = 'e',
 }
 
-type Value = number
-
 type Serialized = Readonly<
     [ClassTag.number, [boolean, string]] |
     [ClassTag.binary, BinOp] |
@@ -97,8 +97,8 @@ interface Token<TAG extends ClassTag = ClassTag> {
 
 /** The number token. */
 class NumberToken implements Token<ClassTag.number> {
-    negative: boolean
-    number: string
+    private negative: boolean
+    private number: string
 
     constructor(init: Digit) {
         this.negative = false;
@@ -157,8 +157,8 @@ class NumberToken implements Token<ClassTag.number> {
         return Precedence.symbol;
     }
     evaluate(_env: Environment, ..._args: Value[]): Value {
-        const n = parseFloat(this.number);
-        return this.negative ? -n : n;
+        const n = RatioValue.parse(this.number);
+        return this.negative ? n.neg() : n;
     }
 
     serialize(): SerializedForTag<ClassTag.number> {
@@ -180,7 +180,7 @@ class NumberToken implements Token<ClassTag.number> {
 
 /** The binary operator tokens (+, -, *, /, ^, E) */
 class BinaryToken implements Token<ClassTag.binary> {
-    op: BinOp
+    private op: BinOp
 
     constructor(op: BinOp) {
         this.op = op;
@@ -232,17 +232,17 @@ class BinaryToken implements Token<ClassTag.binary> {
         const [left, right] = args;
         switch (this.op) {
             case BinOp.add:
-                return left + right;
+                return left.add(right);
             case BinOp.sub:
-                return left - right;
+                return left.sub(right);
             case BinOp.mul:
-                return left * right;
+                return left.mul(right);
             case BinOp.div:
-                return left / right;
+                return left.div(right);
             case BinOp.pow:
-                return Math.pow(left, right);
+                return left.pow(right);
             case BinOp.ee:
-                return left * Math.pow(10, right);
+                return left.mul(RatioValue.TEN.pow(right));
         }
     }
 
@@ -260,7 +260,7 @@ class BinaryToken implements Token<ClassTag.binary> {
 
 /** The unary operator tokens (1/x, sqrt) */
 class UnaryToken implements Token<ClassTag.unary> {
-    op: UnOp
+    private op: UnOp
 
     constructor(op: UnOp) {
         this.op = op;
@@ -308,11 +308,11 @@ class UnaryToken implements Token<ClassTag.unary> {
         const x = args[0];
         switch (this.op) {
             case UnOp.reciprocal:
-                return 1 / x;
+                return x.reciprocal();
             case UnOp.sqrt:
-                return Math.sqrt(x);
+                return x.sqrt();
             case UnOp.neg:
-                return -x;
+                return x.neg();
         }
     }
 
@@ -428,7 +428,7 @@ class GroupToken implements Token<ClassTag.group> {
 }
 
 class SymbolToken implements Token<ClassTag.symbol> {
-    op: SymOp
+    private op: SymOp
 
     constructor(op: SymOp) {
         this.op = op;
@@ -471,7 +471,7 @@ class SymbolToken implements Token<ClassTag.symbol> {
                 if (env.history.length > 0) {
                     return env.history[env.history.length - 1].ans;
                 }
-                return 0;
+                return RatioValue.ZERO;
         }
     }
 
@@ -791,13 +791,13 @@ class Environment {
                 const [formulaJSON, ans] = historyJSON;
                 const formula = formulaJSON.map(deserializeToken);
                 realHistoryIndices.push(index);
-                realHistory.push({ formula, ans });
+                realHistory.push({ formula, ans: deserializeValue(ans) });
             }
         }
 
         this.historyIndices = realHistoryIndices;
         this.history = realHistory;
-        this.partialAns = 0;
+        this.partialAns = RatioValue.ZERO;
     }
 
     saveAns(formula: Token[], ans: Value): void {
@@ -813,7 +813,7 @@ class Environment {
         this.historyIndices.push(nextHistoryID);
         this.history.push({ formula, ans });
 
-        localStorage.setItem(`hV${nextHistoryID}`, JSON.stringify([formula.map(t => t.serialize()), ans]));
+        localStorage.setItem(`hV${nextHistoryID}`, JSON.stringify([formula.map(t => t.serialize()), ans.serialize()]));
         localStorage.setItem('hI', JSON.stringify(this.historyIndices));
     }
 
@@ -864,7 +864,8 @@ document.body.addEventListener('touchmove', (e) => {
 let FORMULA = new Formula();
 let ENV = new Environment();
 
-function formatNumber(n: Value): string {
+function formatNumber(value: Value): string {
+    const n = value.toNumber();
     const abs = Math.abs(n);
     return (abs === 0 || abs >= 1e-6 && abs < 1e16) ? NORMAL_NUMBER_FORMAT.format(n) : n.toExponential();
 }
@@ -938,7 +939,7 @@ $('ac').onclick = (e) => {
     refreshDisplay(e);
 };
 $('copy').onclick = () => {
-    copyText('' + ENV.partialAns);
+    copyText('' + ENV.partialAns.toNumber());
 }
 
 function selectedHistoryItem(): number {
@@ -997,7 +998,7 @@ $('copy-history-value').onclick = () => {
     const item = selectedHistoryItem();
     if (item >= 0) {
         const history = ENV.history[item];
-        copyText('' + history.ans);
+        copyText('' + history.ans.toNumber());
     }
 };
 $('delete-history').onclick = () => {
